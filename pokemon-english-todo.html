@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>영단어 TODO - 포켓몬과 함께!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .pokemon-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .completed {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+        .pokemon-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 2px solid #e0e7ff;
+            transition: all 0.3s ease;
+        }
+        .pokemon-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+        .loading {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .word-item {
+            background: linear-gradient(135deg, #fef7cd 0%, #fff4e6 100%);
+            border-left: 4px solid #f59e0b;
+            transition: all 0.3s ease;
+        }
+        .word-item:hover {
+            background: linear-gradient(135deg, #fef3c7 0%, #fef7cd 100%);
+            transform: translateX(5px);
+        }
+        .word-item.completed {
+            background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+            border-left-color: #94a3b8;
+        }
+    </style>
+</head>
+<body class="pokemon-bg min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- 헤더 -->
+        <div class="text-center mb-8">
+            <h1 class="text-5xl font-bold text-white mb-4 drop-shadow-lg">⚡ 영단어 TODO ⚡</h1>
+            <p class="text-xl text-white opacity-90">포켓몬과 함께하는 영단어 학습!</p>
+        </div>
+
+        <!-- 포켓몬 캐릭터 섹션 -->
+        <div class="pokemon-card rounded-2xl p-6 mb-8 text-center">
+            <div id="pokemonContainer" class="flex flex-col items-center">
+                <div class="w-32 h-32 bg-gradient-to-br from-yellow-200 to-yellow-400 rounded-full flex items-center justify-center mb-4 shadow-lg">
+                    <img id="pokemonImage" src="" alt="포켓몬" class="w-24 h-24 object-contain">
+                </div>
+                <h2 id="pokemonName" class="text-2xl font-bold text-gray-800 mb-2">피카츄</h2>
+                <p class="text-gray-600">오늘도 영단어 공부 화이팅!</p>
+                <button onclick="changePokemon()" class="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-full transition-colors">
+                    포켓몬 바꾸기
+                </button>
+            </div>
+        </div>
+
+        <!-- 통계 섹션 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="pokemon-card rounded-xl p-6 text-center">
+                <div class="text-3xl font-bold text-blue-600 mb-2" id="totalWords">0</div>
+                <div class="text-gray-600">총 단어</div>
+            </div>
+            <div class="pokemon-card rounded-xl p-6 text-center">
+                <div class="text-3xl font-bold text-green-600 mb-2" id="completedWords">0</div>
+                <div class="text-gray-600">완료한 단어</div>
+            </div>
+            <div class="pokemon-card rounded-xl p-6 text-center">
+                <div class="text-3xl font-bold text-purple-600 mb-2" id="progressPercent">0%</div>
+                <div class="text-gray-600">진행률</div>
+            </div>
+        </div>
+
+        <!-- 단어 추가 섹션 -->
+        <div class="pokemon-card rounded-2xl p-6 mb-8">
+            <div class="flex flex-col md:flex-row gap-4">
+                <input 
+                    type="text" 
+                    id="wordInput" 
+                    placeholder="영단어를 입력하세요 (예: apple, beautiful, computer...)"
+                    class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+                    onkeypress="handleKeyPress(event)"
+                >
+                <button 
+                    onclick="addWord()" 
+                    class="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-lg font-semibold transition-colors"
+                >
+                    단어 추가
+                </button>
+                <button 
+                    onclick="addRandomWords()" 
+                    class="bg-purple-500 hover:bg-purple-600 text-white px-8 py-3 rounded-lg font-semibold transition-colors"
+                    id="randomButton"
+                >
+                    영단어 추가 (5개)
+                </button>
+            </div>
+        </div>
+
+        <!-- 단어 목록 -->
+        <div class="pokemon-card rounded-2xl p-6">
+            <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                📚 나의 영단어 목록
+                <span class="ml-auto text-sm font-normal text-gray-500" id="todayDate"></span>
+            </h3>
+            <div id="wordList" class="space-y-3">
+                <div class="text-center py-8 text-gray-500">
+                    아직 등록된 단어가 없습니다.<br>
+                    새로운 영단어를 추가해보세요! 🌟
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let words = [];
+        let currentPokemonId = 25; // 피카츄부터 시작
+
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            updateTodayDate();
+            loadPokemon(currentPokemonId);
+            updateStats();
+        });
+
+        // 오늘 날짜 표시
+        function updateTodayDate() {
+            const today = new Date();
+            const dateString = today.toLocaleDateString('ko-KR', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            document.getElementById('todayDate').textContent = dateString;
+        }
+
+        // 포켓몬 로드
+        async function loadPokemon(id) {
+            try {
+                const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
+                const pokemon = await response.json();
+                
+                document.getElementById('pokemonImage').src = pokemon.sprites.other['official-artwork'].front_default || pokemon.sprites.front_default;
+                document.getElementById('pokemonName').textContent = pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1);
+                
+                // 포켓몬이 바뀔 때 응원 메시지
+                const messages = [
+                    `${pokemon.name}가 함께 공부하자고 해요!`,
+                    `${pokemon.name}와 함께 영단어 마스터가 되어봐요!`,
+                    `${pokemon.name}가 응원하고 있어요!`,
+                    `${pokemon.name}와 함께 오늘도 화이팅!`
+                ];
+                
+                setTimeout(() => {
+                    document.querySelector('#pokemonContainer p').textContent = messages[Math.floor(Math.random() * messages.length)];
+                }, 500);
+                
+            } catch (error) {
+                console.error('포켓몬 로드 실패:', error);
+            }
+        }
+
+        // 포켓몬 바꾸기
+        function changePokemon() {
+            const randomId = Math.floor(Math.random() * 150) + 1; // 1-150번 포켓몬
+            currentPokemonId = randomId;
+            loadPokemon(randomId);
+            
+            Swal.fire({
+                title: '새로운 포켓몬!',
+                text: '새로운 친구가 함께 공부할 거예요!',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+
+        // 엔터키 처리
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                addWord();
+            }
+        }
+
+        // 단어 추가
+        function addWord() {
+            const input = document.getElementById('wordInput');
+            const word = input.value.trim();
+            
+            if (!word) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: '단어를 입력해주세요!',
+                    text: '영단어를 입력해야 추가할 수 있어요.',
+                });
+                return;
+            }
+
+            // 중복 확인
+            if (words.some(w => w.word.toLowerCase() === word.toLowerCase())) {
+                Swal.fire({
+                    icon: 'info',
+                    title: '이미 있는 단어예요!',
+                    text: '다른 단어를 입력해주세요.',
+                });
+                return;
+            }
+
+            const newWord = {
+                id: Date.now(),
+                word: word,
+                completed: false,
+                date: new Date().toLocaleDateString('ko-KR')
+            };
+
+            words.push(newWord);
+            input.value = '';
+            renderWords();
+            updateStats();
+
+            Swal.fire({
+                icon: 'success',
+                title: '단어 추가 완료!',
+                text: `"${word}"가 목록에 추가되었어요!`,
+                timer: 1500,
+                showConfirmButton: false
+            });
+        }
+
+        // 랜덤 영단어 5개 추가
+        async function addRandomWords() {
+            const button = document.getElementById('randomButton');
+            const originalText = button.textContent;
+            button.textContent = '단어 가져오는 중...';
+            button.disabled = true;
+            button.classList.add('loading');
+
+            try {
+                const commonWords = [
+                    'apple', 'banana', 'computer', 'beautiful', 'language', 'freedom', 'happiness', 'knowledge',
+                    'adventure', 'creativity', 'friendship', 'sunshine', 'rainbow', 'butterfly', 'mountain',
+                    'ocean', 'forest', 'journey', 'discovery', 'imagination', 'celebration', 'opportunity',
+                    'challenge', 'success', 'progress', 'innovation', 'inspiration', 'motivation', 'dedication',
+                    'achievement', 'excellence', 'wisdom', 'courage', 'kindness', 'respect', 'honesty',
+                    'responsibility', 'compassion', 'gratitude', 'patience', 'perseverance', 'determination',
+                    'confidence', 'optimism', 'enthusiasm', 'curiosity', 'flexibility', 'resilience', 'empathy',
+                    'integrity', 'humility', 'generosity', 'tolerance', 'understanding', 'cooperation', 'teamwork'
+                ];
+
+                // 이미 추가된 단어 제외하고 랜덤 선택
+                const availableWords = commonWords.filter(word => 
+                    !words.some(w => w.word.toLowerCase() === word.toLowerCase())
+                );
+
+                if (availableWords.length < 5) {
+                    Swal.fire({
+                        icon: 'info',
+                        title: '단어가 부족해요!',
+                        text: '추가할 수 있는 새로운 단어가 5개 미만입니다.',
+                    });
+                    return;
+                }
+
+                const selectedWords = [];
+                for (let i = 0; i < 5; i++) {
+                    const randomIndex = Math.floor(Math.random() * availableWords.length);
+                    selectedWords.push(availableWords.splice(randomIndex, 1)[0]);
+                }
+
+                // 단어들 추가
+                selectedWords.forEach(word => {
+                    const newWord = {
+                        id: Date.now() + Math.random(),
+                        word: word,
+                        completed: false,
+                        date: new Date().toLocaleDateString('ko-KR')
+                    };
+                    words.push(newWord);
+                });
+
+                renderWords();
+                updateStats();
+
+                Swal.fire({
+                    icon: 'success',
+                    title: '영단어 5개 추가 완료!',
+                    html: `추가된 단어들:<br><strong>${selectedWords.join(', ')}</strong>`,
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+
+            } catch (error) {
+                console.error('랜덤 단어 가져오기 실패:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: '단어 가져오기 실패',
+                    text: '네트워크 오류가 발생했습니다. 다시 시도해주세요.',
+                });
+            } finally {
+                button.textContent = originalText;
+                button.disabled = false;
+                button.classList.remove('loading');
+            }
+        }
+
+        // 단어 완료 토글
+        function toggleWord(id) {
+            const word = words.find(w => w.id === id);
+            if (word) {
+                word.completed = !word.completed;
+                renderWords();
+                updateStats();
+
+                if (word.completed) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '완료!',
+                        text: `"${word.word}" 학습 완료! 🎉`,
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                }
+            }
+        }
+
+        // 단어 삭제
+        function deleteWord(id) {
+            Swal.fire({
+                title: '정말 삭제하시겠어요?',
+                text: "삭제된 단어는 복구할 수 없어요!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: '삭제',
+                cancelButtonText: '취소'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    words = words.filter(w => w.id !== id);
+                    renderWords();
+                    updateStats();
+                    
+                    Swal.fire({
+                        icon: 'success',
+                        title: '삭제 완료!',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                }
+            });
+        }
+
+        // 단어 목록 렌더링
+        function renderWords() {
+            const wordList = document.getElementById('wordList');
+            
+            if (words.length === 0) {
+                wordList.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        아직 등록된 단어가 없습니다.<br>
+                        새로운 영단어를 추가해보세요! 🌟
+                    </div>
+                `;
+                return;
+            }
+
+            wordList.innerHTML = words.map(word => `
+                <div class="word-item ${word.completed ? 'completed' : ''} rounded-lg p-4 flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <input 
+                            type="checkbox" 
+                            ${word.completed ? 'checked' : ''}
+                            onchange="toggleWord(${word.id})"
+                            class="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                        >
+                        <div class="flex flex-col">
+                            <span class="text-lg font-semibold ${word.completed ? 'completed' : ''} text-gray-800">
+                                ${word.word}
+                            </span>
+                            <span class="text-sm text-gray-500">${word.date}</span>
+                        </div>
+                    </div>
+                    <button 
+                        onclick="deleteWord(${word.id})"
+                        class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                        삭제
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // 통계 업데이트
+        function updateStats() {
+            const total = words.length;
+            const completed = words.filter(w => w.completed).length;
+            const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+            document.getElementById('totalWords').textContent = total;
+            document.getElementById('completedWords').textContent = completed;
+            document.getElementById('progressPercent').textContent = `${percentage}%`;
+        }
+    </script>
+</body>
+</html>
